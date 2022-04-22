@@ -4,7 +4,7 @@ author: "Khadra Mohamed"
 date: '2022-04-17'
 output:
   html_document: default
-  pdf_document: default
+
 ---
 
 ```{r setup, include=FALSE}
