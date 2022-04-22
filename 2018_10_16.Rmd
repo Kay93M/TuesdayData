@@ -1,5 +1,5 @@
 ---
-title: '2018-10-16'
+title: '2018-10-16: Economic Guide to Picking a College Major'
 author: "Khadra Mohamed"
 date: '2022-04-17'
 output:
