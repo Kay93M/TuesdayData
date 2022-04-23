@@ -1,0 +1,205 @@
+---
+title: '2018-10-16: Economic Guide to Picking a College Major'
+author: "Khadra Mohamed"
+date: '2022-04-17'
+output:
+  html_document: default
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(scales)
+
+theme_set(theme_light())
+```
+
+```{r}
+recent_grads <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-10-16/recent-grads.csv")
+
+data_processed <- recent_grads %>%
+  arrange(desc(Median)) %>%
+  mutate(Major = str_to_title(Major), 
+        Major= fct_reorder(Major, Median))
+```
+
+### The most common major categories:
+
+```{r}
+data_processed %>%
+  count(Major_category, wt = Total, sort = TRUE) %>%
+  mutate(Major_category = fct_reorder(Major_category,n)) %>%
+  ggplot(aes(Major_category, n, fill = Major_category)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = comma_format()) +
+  labs(x = "Major category", y = "Toal number of graduates") +
+  theme(legend.position = "none")
+```
+
+### The most common majors:
+
+```{r}
+data_processed %>%
+  mutate(Major = fct_reorder(Major, Total)) %>%
+  arrange(desc(Total)) %>%
+  head(25) %>%
+  ggplot(aes(Major,Total, fill = Major_category)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = comma_format()) +
+  labs(x = "", y = "Toal number of graduates")
+
+```
+
+### Which Majors make the most money and which make the least? 
+
+```{r}
+data_processed %>%
+  ggplot(aes(Median)) +
+  geom_histogram()
+```
+
+```{r}
+data_processed %>%
+  ggplot(aes(Major_category, Median)) +
+  geom_boxplot() + 
+  scale_y_continuous(labels = comma_format()) +
+  coord_flip()
+```
+
+```{r}
+data_processed %>%
+  mutate(Major_category = str_to_title(Major_category),
+    Major_category = fct_reorder(Major_category, Median)) %>%
+  ggplot(aes(Major_category, Median)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar_format()) + 
+  coord_flip()
+```
+
+```{r}
+data_processed %>%
+  group_by(Major_category) %>%
+  summarize(Median = median(Median)) %>%
+  mutate(Major_category = str_to_title(Major_category),
+    Major_category = fct_reorder(Major_category, Median)) %>%
+  ggplot(aes(Major_category, Median)) +
+  geom_col() +
+  scale_y_continuous(labels = dollar_format()) + 
+  coord_flip()
+```
+
+### What are the highest paying majors?
+
+```{r}
+data_processed %>%
+  select(Major, Major_category, Median, P25th, P75th, Sample_size)
+  
+data_processed %>% 
+head(25) %>%
+  ggplot(aes(Major, Median, color = Major_category)) +
+  geom_errorbar(aes(ymin = P25th, ymax = P75th)) +
+  geom_point() +
+  scale_y_continuous(labels = comma_format()) +
+  coord_flip()
+```
+
+```{r}
+data_processed %>% 
+  filter(Sample_size >= 100) %>%
+  head(25) %>%
+  ggplot(aes(Major, Median, color = Major_category)) +
+  geom_errorbar(aes(ymin = P25th, ymax = P75th)) +
+  geom_point() +
+  scale_y_continuous(labels = dollar_format()) +
+  coord_flip() +
+  labs(title = "The highest paying majors", subtitle = "Top 25 highest paid majors with >= 100 graduates surveyed", y = "Median salary of graduates")
+
+```
+
+### What are the lowest paying majors?
+
+```{r}
+data_processed %>% 
+tail(25) %>%
+  ggplot(aes(Major, Median, color = Major_category)) +
+  geom_errorbar(aes(ymin = P25th, ymax = P75th)) +
+  geom_point() +
+  expand_limits(y = 0) +
+  coord_flip()
+```
+
+```{r}
+data_processed %>%
+  ggplot(aes(Sample_size, Median)) +
+  geom_point()
+  scale_x_log10()
+```
+
+```{r}
+data_processed %>%
+  ggplot(aes(Sample_size, Median)) +
+  geom_point() + 
+###  geom_point(aes(color = Major_category)) too many categories, no useful information could be provided.
+  geom_text(aes(label = Major), check_overlap = TRUE, vjust = 1, hjust = 1) +
+  scale_x_log10()
+```
+
+```{r}
+data_processed %>% 
+  filter(Sample_size >= 100) %>%
+  tail(25) %>%
+  ggplot(aes(Major, Median, color = Major_category)) +
+  geom_errorbar(aes(ymin = P25th, ymax = P75th)) +
+  geom_point() +
+  scale_y_continuous(labels = dollar_format()) +
+  coord_flip() +
+  labs(title = "The lowest paying majors", subtitle = "Top 25 lowest paid majors with >= 100 graduates surveyed", y = "Median salary of graduates")
+```
+
+### The gender wage gap:
+
+```{r}
+data_processed %>%
+  arrange(desc(Total)) %>%
+  head(25) %>%
+  mutate(Major = fct_reorder(Major, Total))  %>%
+  gather(Gender, Number, Men, Women) %>%
+  ggplot(aes(Major, Number, fill = Gender)) + 
+  geom_col() + 
+  scale_y_continuous(labels = comma_format()) +
+  coord_flip()
+```
+
+```{r}
+gender_median_sum <- data_processed %>%
+  filter(!is.na(Total)) %>%
+  group_by(Major_category) %>%
+  summarize(Men = sum(Men), Women = sum(Women), Total = sum(Total), MedianSalary = sum(Median * Sample_size) / sum(Sample_size)) %>%
+  mutate(ShareWomen= Women/Total) %>%
+  arrange(desc(ShareWomen))
+```
+
+```{r}
+library(ggrepel)
+gender_median_sum %>%
+  ggplot(aes(MedianSalary, ShareWomen)) +
+  geom_point() +
+  geom_text_repel(aes(label = Major_category)) +
+  expand_limits(y= 0, x = 30000) +
+  scale_x_continuous(labels = dollar_format())
+```
+
+```{r}
+data_processed %>%
+  ggplot(aes(Median, ShareWomen, color = Major_category)) +
+  geom_point() +
+  geom_smooth(aes(group = 1), method = "lm") +
+  expand_limits(y = 0) +
+  scale_x_continuous(labels = dollar_format())
+```
