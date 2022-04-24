@@ -1,0 +1,288 @@
+---
+title: "2018.10.23_hmovies_profit"
+author: "Khadra Mohamed"
+date: '2022-04-23'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading library}
+library(tidyverse)
+library(lubridate)
+library(scales)
+theme_set(theme_light())
+```
+
+```{r reading the data}
+movie_profit <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-10-23/movie_profit.csv")
+```
+
+```{r cleaning the data}
+data_processed <- movie_profit %>% 
+  select(-X) %>%
+  mutate(release_date = parse_date_time(release_date, "%m!/%d/%Y")) %>%
+  mutate(distributor = fct_lump(distributor, 6)) %>%
+  filter(worldwide_gross > 0) %>%
+  mutate(profit_ratio = worldwide_gross / production_budget,
+         decade = 10 * floor(year(release_date) / 10))
+
+data_processed %>%
+  count(distributor, sort = TRUE) 
+```
+
+### What are the most common genres over time? 
+
+```{r most common genres 1}
+data_processed %>%
+  count(decade, genre) %>%
+  group_by(decade) %>%
+  mutate(precent = n / sum(n)) %>%
+  ggplot(aes(decade, precent, color = genre)) +
+  geom_line() +
+  scale_y_continuous(labels = percent_format())
+```
+
+```{r most common genres 2}
+data_processed %>%
+  count(distributor, genre) %>%
+  ggplot(aes(genre, n, fill = genre)) +
+  geom_col() +
+  facet_wrap(~ distributor, scales = "free_x") +
+  coord_flip()
+```
+
+```{r most common genres 3}
+data_processed %>%
+  arrange(desc(profit_ratio)) %>%
+  head(25) %>%
+  mutate(movie = fct_reorder(movie, profit_ratio)) %>%
+  ggplot(aes(movie, profit_ratio, fill = genre)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = function(x) paste0(x, "X"))
+```
+
+### Which major movie distributors have the largest production budgest?
+
+```{r data overview}
+data_processed %>%
+  ggplot(aes(production_budget)) +
+  geom_histogram() +
+  scale_x_log10(labels = dollar_format()) 
+```
+
+```{r production budgest}
+data_processed %>%
+  ggplot(aes(distributor, production_budget)) +
+  geom_boxplot(width = 0.15, 
+               position = position_nudge(x = -0.1), 
+               outlier.shape = NA, fill = "grey40") +
+  geom_point(alpha = 0.3, 
+             position = position_nudge(x = +0.15), 
+             shape = 95, size = 6, col = "#f77f00") +
+  scale_y_log10(labels = dollar_format()) +
+  coord_flip()
+```
+
+### Which major movie distributors have the largest worldwide gross?
+
+```{r worldwide gross}
+data_processed %>%
+  ggplot(aes(distributor, worldwide_gross)) +
+  geom_violin() +
+  geom_point() +
+  scale_y_log10(labels = dollar_format()) +
+  coord_flip()
+```
+
+### What genres have the largest worldwide gross?
+
+```{r exploring what geners make the most profit}
+data_processed %>%
+  count(genre, sort = TRUE)
+
+data_processed %>%
+  mutate(genre = fct_reorder(genre, production_budget)) %>%
+  ggplot(aes(genre, production_budget, fill = distributor)) +
+  geom_boxplot() +
+  theme_classic() +
+  scale_y_log10(labels = dollar_format()) +
+  coord_flip()
+
+```
+
+### How many movies are released per decade?
+
+```{r how many movies are released per decade?}
+data_processed %>%
+  mutate(decade = 10 * floor(year(release_date) / 10)) %>%
+  count(decade)
+```
+
+### Movie budget over time: 
+
+```{r movie budget over time}
+data_processed %>%
+  mutate(decade = 10 * floor(year(release_date) / 10)) %>%
+  group_by(decade) %>%
+  summarise_at(vars(production_budget:worldwide_gross), median, na.rm = TRUE) %>%
+  gather(metric, value, -decade) %>%
+  ggplot(aes(decade, value, color = metric)) + 
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = dollar_format())
+```
+
+### Which genres cost more money?
+
+```{r cost of genres}
+data_processed %>%
+  mutate(genre = fct_reorder(genre, production_budget)) %>%
+  filter(! is.na(distributor)) %>%
+  ggplot(aes(genre, production_budget, fill = distributor)) +
+  geom_boxplot() +
+  theme_classic() +
+  scale_y_log10(labels = dollar_format()) +
+  coord_flip() +
+  facet_wrap(~ distributor)
+```
+
+### Which genres are profitable?
+
+```{r which genres are profitable}
+data_processed %>%
+  mutate(genre = fct_reorder(genre, worldwide_gross)) %>%
+  filter(! is.na(distributor)) %>%
+  ggplot(aes(genre, worldwide_gross, fill = distributor)) +
+  geom_boxplot() +
+  theme_classic() +
+  scale_y_log10(labels = dollar_format()) +
+  coord_flip() +
+  facet_wrap(~ distributor, scales = "free_x")
+```
+
+### Worldwide gross to production budget ratio:
+
+```{r worldwide gross to production budget ratio}
+data_processed %>%
+  mutate(profit_ratio = worldwide_gross / production_budget) %>%
+  arrange(desc(profit_ratio)) %>%
+  ggplot(aes(profit_ratio)) + 
+  geom_histogram() +
+  scale_x_log10(labels = comma_format())
+```
+
+### horror movies have high profit ratio:  
+
+```{r horror movies have high profit ratio 1}
+data_processed %>%
+  mutate(profit_ratio = worldwide_gross / production_budget) %>%
+  ggplot(aes(genre, profit_ratio)) + 
+  geom_boxplot() +
+  scale_y_log10(labels = comma_format()) +
+  coord_flip()
+```
+
+```{r horror movies have high profit ratio 2}
+data_processed %>%
+  group_by(genre) %>%
+  summarise(median_profit_ratio = median(profit_ratio)) %>%
+  arrange(desc(median_profit_ratio)) %>%
+  mutate(genre = fct_reorder(genre, median_profit_ratio)) %>%
+  ggplot(aes(genre, median_profit_ratio)) +
+  geom_col() +
+  scale_y_continuous(labels = function(x) paste0(x, "X")) +
+  coord_flip()
+```
+
+```{r horror movies have high profit ratio 3}
+data_processed %>%
+  group_by(genre, year = year(release_date)) %>%
+  summarise(median_profit_ratio = median(profit_ratio),
+            movies = n()) %>%
+  filter(year >= "2000") %>%
+  arrange(movies)
+```
+
+```{r horror movies have high profit ratio 4}
+data_processed %>%
+  group_by(genre, year = year(release_date)) %>%
+  summarise(median_profit_ratio = median(profit_ratio),
+            movies = n()) %>%
+  filter(year >= "2000") %>%
+  arrange(desc(median_profit_ratio)) %>%
+  mutate(genre = fct_reorder(genre, median_profit_ratio)) %>%
+  ggplot(aes(year, median_profit_ratio, color = genre)) +
+  geom_line() +
+  scale_y_continuous(labels = function(x) paste0(x, "X"))
+```
+
+### Horror movies crushing the market around 2013! What happened?
+
+```{r horror movies have high profit ratio 5}
+data_processed %>%
+  group_by(genre, distributor, decade) %>%
+  summarise(median_profit_ratio = median(profit_ratio),
+            movies = n()) %>%
+  filter(decade >= 1990) %>%
+  arrange(desc(median_profit_ratio)) %>%
+  mutate(genre = fct_reorder(genre, median_profit_ratio)) %>%
+  ggplot(aes(decade, median_profit_ratio, color = genre)) +
+  geom_line() +
+  facet_wrap(~ distributor, scales = "free_x") +
+  scale_y_continuous(labels = function(x) paste0(x, "X"))
+```
+
+```{r horror movies have high profit ratio 6}
+data_processed %>%
+mutate(profit_ratio = worldwide_gross / production_budget) %>%
+  group_by(genre, year = year(release_date)) %>%
+  summarise(median_profit_ratio = median(profit_ratio),
+            movies = n()) %>%
+  filter(year >= "2000") %>%
+  arrange(desc(median_profit_ratio)) %>%
+  mutate(genre = fct_reorder(genre, median_profit_ratio)) %>%
+  ggplot(aes(year, median_profit_ratio, color = genre)) +
+  geom_line() +
+  scale_y_continuous(labels = function(x) paste0(x, "X"))
+```
+
+### What horror movies were the most profitable over time?
+```{r horror movies}
+horror_movies <- data_processed %>%
+  filter(genre == "Horror") %>%
+  arrange(desc(profit_ratio))
+```
+
+```{r What horror movies were the most profitable over time? 1}
+horror_movies %>%
+  head(25) %>%
+  mutate(movie = paste0(movie, "(", year(release_date), ")"),
+         movie = fct_reorder(movie, profit_ratio)) %>%
+  ggplot(aes(movie, profit_ratio, fill = distributor)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = function(x) paste0(x, "X"))
+```
+
+```{r What horror movies were the most profitable over time? 2}
+ g <- horror_movies %>%
+  filter(release_date >="1990-01-01") %>%
+  filter(profit_ratio >= 0.01) %>%
+  ggplot(aes(release_date, profit_ratio)) +
+  geom_point(aes(color = distributor)) +
+  geom_smooth(method = "lm") +
+  geom_text(aes(label = movie), vjust = 1, hjust = 1, check_overlap = TRUE) +
+  scale_y_log10(labels = function(x) paste0(x, "X"), breaks = c(0.1, 1, 10, 100)) + 
+  facet_wrap(~ distributor, scales = "free_x")
+
+ggsave("most profitable horror movies 2.png", g, height=18, width=22, units="cm")
+
+```
+
+
